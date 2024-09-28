@@ -20,14 +20,11 @@ def arsv_returns(mu, phi, sigma_v, T, burn_in=1000):
     epsilon = np.random.normal(size=total_length)
     v = np.random.normal(size=total_length)
     h[0] = mu  # Initialize h[0] at the long-term mean
-
     # Generate the log volatility process
     for t in range(1, total_length):
         h[t] = mu + phi * (h[t-1] - mu) + sigma_v * v[t]
-
     # Generate the returns
     y = np.exp(h / 2) * epsilon
-
     # Discard the burn-in period
     return y[burn_in:]
 
@@ -65,7 +62,7 @@ def arsv_vol_and_returns(mu, phi, sigma_v, T, burn_in=1000):
     result = np.column_stack((sigma_t, y))
     return result
 
-def fit_arsv(y):
+def fit_arsv(y, acf_1_var_max=0.99):
     """
     Estimate the parameters mu, phi, and sigma_v of an ARSV model given observed returns y_t.
 
@@ -97,7 +94,7 @@ def fit_arsv(y):
     Var_s_empirical = np.sum(s_t_star_centered ** 2) / (n - 1)
     rho_1 = autocov / Var_s_empirical
     phi_hat = rho_1 / (1 - var_eta / Var_s)
-    phi_hat = np.clip(phi_hat, -0.9999, 0.9999)
+    phi_hat = np.clip(phi_hat, -acf_1_var_max, acf_1_var_max)
     sigma_h2_hat = Var_s - var_eta
     sigma_v2_hat = (1 - phi_hat ** 2) * sigma_h2_hat
     mu_hat = np.mean(s_t_star)
