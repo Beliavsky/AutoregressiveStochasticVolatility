@@ -9,8 +9,9 @@ fmt_r = "%10.6f"
 mu = -0.5       # Long-term mean of log volatility
 phi = 0.9       # Autoregressive parameter
 sigma_v = 0.4   # Volatility of volatility
-nobs = 10**4    # # of returns simulated
+nobs = 10**6    # # of returns simulated
 niter = 3       # # of sets of returns to simulate
+print("#obs:", nobs, end="\n\n")
 
 for iter in range(niter):
     x = arsv_vol_and_returns(mu, phi, sigma_v, nobs)
@@ -21,3 +22,4 @@ for iter in range(niter):
         "returns":some_stats(x[:, 1]), "returns/vol":some_stats(x[:, 1]/x[:, 0])},
         index=stats_names).T
     print(df, end="\n\n")
+    
