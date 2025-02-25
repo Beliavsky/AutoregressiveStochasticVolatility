@@ -1,9 +1,10 @@
 import numpy as np
 from scipy.special import psi, polygamma
 
-def arsv_returns(mu, phi, sigma_v, T, burn_in=1000):
+def arsv_returns_zero_corr(mu, phi, sigma_v, T, burn_in=1000):
     """
-    Simulate daily returns with autoregressive stochastic log volatility.
+    Simulate daily returns with autoregressive stochastic log volatility with zero correlation between
+    return and log volatility innovations.
 
     Parameters:
     - mu: float, the long-term mean of the log volatility process.
@@ -28,9 +29,11 @@ def arsv_returns(mu, phi, sigma_v, T, burn_in=1000):
     # Discard the burn-in period
     return y[burn_in:]
 
-def arsv_vol_and_returns(mu, phi, sigma_v, T, burn_in=1000):
+
+def arsv_vol_and_returns_zero_corr(mu, phi, sigma_v, T, burn_in=1000):
     """
-    Simulate daily returns and conditional standard deviations with autoregressive stochastic log volatility.
+    Simulate daily returns and conditional standard deviations with autoregressive stochastic log volatility
+    with zero correlation between return and log volatility innovations.
 
     Parameters:
     - mu: float, the long-term mean of the log volatility process.
@@ -62,9 +65,11 @@ def arsv_vol_and_returns(mu, phi, sigma_v, T, burn_in=1000):
     result = np.column_stack((sigma_t, y))
     return result
 
-def fit_arsv(y, acf_1_var_max=0.99):
+
+def fit_arsv_zero_corr(y, acf_1_var_max=0.99):
     """
-    Estimate the parameters mu, phi, and sigma_v of an ARSV model given observed returns y_t.
+    Estimate the parameters mu, phi, and sigma_v of an ARSV model given observed returns y_t
+    with zero correlation between return and log volatility innovations.
 
     Parameters:
     - y: ndarray, the observed returns.
@@ -79,9 +84,8 @@ def fit_arsv(y, acf_1_var_max=0.99):
 
     # Step 2: Compute mean and variance of eta_t
     # eta_t = log(epsilon_t^2), where epsilon_t ~ N(0,1)
-    # Mean and variance of eta_t can be derived using properties of the log-chi-squared distribution
-    mean_eta = psi(0.5) + np.log(2)  # psi is the digamma function
-    var_eta = polygamma(1, 0.5)      # polygamma(1, z) is the trigamma function
+    mean_eta = psi(0.5) + np.log(2)
+    var_eta = polygamma(1, 0.5)
     # Step 3: Compute s_t_star = s_t - mean_eta
     s_t_star = s_t - mean_eta
     # Step 4: Compute sample variance of s_t_star
@@ -100,3 +104,73 @@ def fit_arsv(y, acf_1_var_max=0.99):
     mu_hat = np.mean(s_t_star)
     sigma_v_hat = np.sqrt(sigma_v2_hat)
     return mu_hat, phi_hat, sigma_v_hat
+
+# Generalized functions (nonzero correlation)
+
+def arsv_returns(mu, phi, sigma_v, rho, T, burn_in=1000):
+    """
+    Simulate daily returns with autoregressive stochastic log volatility allowing for nonzero correlation 
+    between return and log volatility innovations.
+
+    Parameters:
+    - mu: float, the long-term mean of the log volatility process.
+    - phi: float, the autoregressive parameter (|phi| < 1).
+    - sigma_v: float, the standard deviation of the volatility shocks.
+    - rho: float, the correlation between return and log volatility innovations (must lie in [-1, 1]).
+    - T: int, the number of time periods to simulate.
+    - burn_in: int, the number of initial observations to discard (to reduce the effect of initial values).
+
+    Returns:
+    - y: ndarray, the simulated daily returns of length T.
+    """
+    total_length = T + burn_in
+    h = np.zeros(total_length)
+    # Generate two independent standard normals
+    z1 = np.random.normal(size=total_length)
+    z2 = np.random.normal(size=total_length)
+    # Construct v and epsilon so that Corr(epsilon, v) = rho:
+    v = z1
+    epsilon = rho * z1 + np.sqrt(1 - rho**2) * z2
+    # Initialize the log volatility at its long-run mean
+    h[0] = mu
+    # Simulate the log volatility process:
+    for t in range(1, total_length):
+        h[t] = mu + phi * (h[t-1] - mu) + sigma_v * v[t]
+    # Generate returns:
+    y = np.exp(h / 2) * epsilon
+    return y[burn_in:]
+
+
+def arsv_vol_and_returns(mu, phi, sigma_v, rho, T, burn_in=1000):
+    """
+    Simulate daily returns and the corresponding conditional standard deviations with autoregressive 
+    stochastic log volatility allowing for nonzero correlation between return and log volatility innovations.
+
+    Parameters:
+    - mu: float, the long-term mean of the log volatility process.
+    - phi: float, the autoregressive parameter (|phi| < 1).
+    - sigma_v: float, the standard deviation of the volatility shocks.
+    - rho: float, the correlation between return and log volatility innovations (must lie in [-1, 1]).
+    - T: int, the number of time periods to simulate.
+    - burn_in: int, the number of initial observations to discard.
+
+    Returns:
+    - result: ndarray of shape (T, 2), where the first column contains the conditional standard deviations 
+              (sigma_t = exp(h_t/2)) and the second column contains the simulated daily returns.
+    """
+    total_length = T + burn_in
+    h = np.zeros(total_length)
+    z1 = np.random.normal(size=total_length)
+    z2 = np.random.normal(size=total_length)
+    v = z1
+    epsilon = rho * z1 + np.sqrt(1 - rho**2) * z2
+    h[0] = mu
+    for t in range(1, total_length):
+        h[t] = mu + phi * (h[t-1] - mu) + sigma_v * v[t]
+    sigma_t = np.exp(h / 2)
+    y = sigma_t * epsilon
+    # Discard burn-in:
+    sigma_t = sigma_t[burn_in:]
+    y = y[burn_in:]
+    result = np.column_stack((sigma_t, y))
+    return result
